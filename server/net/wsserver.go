@@ -95,6 +95,7 @@ func (w *wsServer) writeMsgLoop() {
 
 func (w *wsServer) Write(msg *WsMsgRsp) {
 	data, err := json.Marshal(msg.Body)
+	log.Println(msg.Body)
 	if err != nil {
 		log.Println(err)
 	}

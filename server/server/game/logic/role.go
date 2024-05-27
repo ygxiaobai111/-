@@ -47,6 +47,7 @@ func (r *roleService) EnterServer(uid int, rsp *model.EnterServerRsp, conn net.W
 				log.Println("插入角色资源出错", err)
 				return common.New(constant.DBError, "数据库出错")
 			}
+			log.Println("插入角色资源成功")
 		}
 		//模型转换
 		rsp.RoleRes = roleRes.ToModel().(model.RoleRes)

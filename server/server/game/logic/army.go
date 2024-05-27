@@ -22,7 +22,23 @@ func (r *armyService) GetArmys(rid int) ([]model.Army, error) {
 		log.Println("军队查询出错", err)
 		return nil, common.New(constant.DBError, "军队查询出错")
 	}
-	modelMrs := make([]model.Army, len(mrs))
+	modelMrs := make([]model.Army, 0)
+	for _, v := range mrs {
+		modelMrs = append(modelMrs, v.ToModel().(model.Army))
+	}
+	return modelMrs, nil
+}
+
+// GetArmysByCity 查询城池拥有的军队
+func (r *armyService) GetArmysByCity(rid, cId int) ([]model.Army, error) {
+	mrs := make([]data.Army, 0)
+	mr := &data.Army{}
+	err := db.Engine.Table(mr).Where("rid=? and cityId=?", rid, cId).Find(&mrs)
+	if err != nil {
+		log.Println("军队查询出错", err)
+		return nil, common.New(constant.DBError, "军队查询出错")
+	}
+	modelMrs := make([]model.Army, 0)
 	for _, v := range mrs {
 		modelMrs = append(modelMrs, v.ToModel().(model.Army))
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model/data"
 	utils "github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/util"
+	"log"
 )
 
 var DefaultRoleController = &RoleController{}
@@ -20,6 +21,7 @@ func (r *RoleController) Router(router *net.Router) {
 	g := router.Group("role")
 	g.AddRouter("enterServer", r.enterServer)
 	g.AddRouter("myProperty", r.myProperty)
+	g.AddRouter("posTagList", r.posTagList)
 }
 
 func (r *RoleController) enterServer(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
@@ -33,23 +35,28 @@ func (r *RoleController) enterServer(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 	rsp.Body.Seq = req.Body.Seq
 	rsp.Body.Name = req.Body.Name
 	if err != nil {
+		log.Println("enterServer err:", err)
 		rsp.Body.Code = constant.InvalidParam
 		return
 	}
 	session := reqObj.Session
 	_, claim, err := utils.ParseToken(session)
 	if err != nil {
+		log.Println("enterServer err:", err)
+
 		rsp.Body.Code = constant.SessionInvalid
 		return
 	}
 	uid := claim.Uid
 	err = logic.RoleService.EnterServer(uid, rspObj, req.Conn)
 	if err != nil {
+		log.Println("enterServer err:", err)
 		rsp.Body.Code = err.(*common.MyError).Code()
 		return
 	}
 	rsp.Body.Code = constant.OK
 	rsp.Body.Msg = rspObj
+	log.Println("enterServer resp:", rsp)
 }
 
 func (r *RoleController) myProperty(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
@@ -95,4 +102,26 @@ func (r *RoleController) myProperty(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 	}
 	rsp.Body.Code = constant.OK
 	rsp.Body.Msg = rspObj
+}
+func (r *RoleController) posTagList(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
+	rspObj := &model.PosTagListRsp{}
+
+	rsp.Body.Seq = req.Body.Seq
+	rsp.Body.Name = req.Body.Name
+	//去 角色属性 表去查询
+	role, err := req.Conn.GetProperty("role")
+	if err != nil {
+		rsp.Body.Code = constant.SessionInvalid
+		return
+	}
+	rid := role.(*data.Role).RId
+	pts, err := logic.RoleAttrService.GetTagList(rid)
+	if err != nil {
+		rsp.Body.Code = err.(*common.MyError).Code()
+		return
+	}
+	rspObj.PosTags = pts
+	rsp.Body.Code = constant.OK
+	rsp.Body.Msg = rspObj
+
 }

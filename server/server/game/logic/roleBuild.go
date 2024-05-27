@@ -22,7 +22,7 @@ func (r *roleBuildService) GetBuilds(rid int) ([]model.MapRoleBuild, error) {
 		log.Println("建筑查询出错", err)
 		return nil, common.New(constant.DBError, "建筑查询出错")
 	}
-	modelMrs := make([]model.MapRoleBuild, len(mrs))
+	modelMrs := make([]model.MapRoleBuild, 0)
 	for _, v := range mrs {
 		modelMrs = append(modelMrs, v.ToModel().(model.MapRoleBuild))
 	}

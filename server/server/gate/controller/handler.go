@@ -43,7 +43,7 @@ func (h *Handler) all(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 		rsp.Body.Code = constant.ProxyNotInConnect
 		return
 	}
-	log.Println("kk")
+
 	h.proxyMutex.Lock()
 	_, ok := h.proxyMap[proxyStr]
 	if !ok {
