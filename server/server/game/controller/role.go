@@ -6,6 +6,7 @@ import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/common"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/logic"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/middleware"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model/data"
 	utils "github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/util"
@@ -19,9 +20,10 @@ type RoleController struct {
 
 func (r *RoleController) Router(router *net.Router) {
 	g := router.Group("role")
+	g.Use(middleware.Log())
 	g.AddRouter("enterServer", r.enterServer)
-	g.AddRouter("myProperty", r.myProperty)
-	g.AddRouter("posTagList", r.posTagList)
+	g.AddRouter("myProperty", r.myProperty, middleware.CheckRole())
+	g.AddRouter("posTagList", r.posTagList, middleware.CheckRole())
 }
 
 func (r *RoleController) enterServer(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
@@ -48,7 +50,7 @@ func (r *RoleController) enterServer(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 		return
 	}
 	uid := claim.Uid
-	err = logic.RoleService.EnterServer(uid, rspObj, req.Conn)
+	err = logic.RoleService.EnterServer(uid, rspObj, req)
 	if err != nil {
 		log.Println("enterServer err:", err)
 		rsp.Body.Code = err.(*common.MyError).Code()

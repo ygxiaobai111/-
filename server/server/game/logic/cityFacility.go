@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/constant"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/common"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model/data"
 	"log"
+	"xorm.io/xorm"
 )
 
 var CityFacilityService = &cityFacilityService{}
@@ -15,7 +17,8 @@ var CityFacilityService = &cityFacilityService{}
 type cityFacilityService struct {
 }
 
-func (c *cityFacilityService) TryCreate(cid, rid int) error {
+func (c *cityFacilityService) TryCreate(cid, rid int, req *net.WsMsgReq) error {
+
 	cf := &data.CityFacility{}
 	ok, err := db.Engine.Table(cf).Where("cityId=?", cid).Get(cf)
 	if err != nil {
@@ -40,7 +43,12 @@ func (c *cityFacilityService) TryCreate(cid, rid int) error {
 	}
 	dataJson, _ := json.Marshal(facs)
 	cf.Facilities = string(dataJson)
-	_, err = db.Engine.Table(cf).Insert(cf)
+	if session := req.Context.Get("dbsession"); session != nil {
+		_, err = session.(*xorm.Session).Table(cf).Insert(cf)
+	} else {
+		_, err = db.Engine.Table(cf).Insert(cf)
+	}
+
 	if err != nil {
 		log.Println("插入城市设施出错", err)
 		return common.New(constant.DBError, "数据库错误")

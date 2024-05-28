@@ -12,6 +12,7 @@ import (
 	"log"
 	"math/rand"
 	"time"
+	"xorm.io/xorm"
 )
 
 var RoleCityService = &roleCityService{}
@@ -19,7 +20,8 @@ var RoleCityService = &roleCityService{}
 type roleCityService struct {
 }
 
-func (r *roleCityService) InitCity(rid int, name string, conn net.WSConn) error {
+func (r *roleCityService) InitCity(rid int, name string, req *net.WsMsgReq) error {
+
 	roleCity := &data.MapRoleCity{}
 	ok, err := db.Engine.Table(roleCity).Where("rid=?", rid).Get(roleCity)
 	if err != nil {
@@ -40,13 +42,17 @@ func (r *roleCityService) InitCity(rid int, name string, conn net.WSConn) error 
 				roleCity.CurDurable = gameConfig.Base.City.Durable
 				roleCity.CreatedAt = time.Now()
 				roleCity.IsMain = 1
-				_, err = db.Engine.Table(roleCity).Insert(roleCity)
+				if session := req.Context.Get("dbsession"); session != nil {
+					_, err = session.(*xorm.Session).Table(roleCity).Insert(roleCity)
+				} else {
+					_, err = db.Engine.Table(roleCity).Insert(roleCity)
+				}
 				if err != nil {
 					log.Println("插入角色城池出错", err)
 					return common.New(constant.DBError, "数据库出错")
 				}
 				//初始化城池的设施
-				if err := CityFacilityService.TryCreate(roleCity.CityId, rid); err != nil {
+				if err := CityFacilityService.TryCreate(roleCity.CityId, rid, req); err != nil {
 					log.Println("城池设施出错", err)
 					return common.New(err.(*common.MyError).Code(), err.Error())
 				}

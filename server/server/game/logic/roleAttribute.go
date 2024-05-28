@@ -10,6 +10,7 @@ import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model/data"
 	"log"
 	"sync"
+	"xorm.io/xorm"
 )
 
 var RoleAttrService = &roleAttrService{
@@ -21,7 +22,8 @@ type roleAttrService struct {
 	attrs map[int]*data.RoleAttribute
 }
 
-func (r *roleAttrService) TryCreate(rid int, conn net.WSConn) error {
+func (r *roleAttrService) TryCreate(rid int, req *net.WsMsgReq) error {
+
 	role := &data.RoleAttribute{}
 	ok, err := db.Engine.Table(role).Where("rid=?", rid).Get(role)
 	if err != nil {
@@ -32,7 +34,7 @@ func (r *roleAttrService) TryCreate(rid int, conn net.WSConn) error {
 		//缓存
 		r.mutex.Lock()
 		r.attrs[rid] = role
-		r.mutex.Unlock()
+		defer r.mutex.Unlock()
 		return nil
 	} else {
 		//初始化
@@ -40,14 +42,19 @@ func (r *roleAttrService) TryCreate(rid int, conn net.WSConn) error {
 		role.UnionId = 0
 		role.ParentId = 0
 		role.PosTags = ""
-		_, err = db.Engine.Table(role).Insert(role)
+		if session := req.Context.Get("dbSession"); session != nil {
+			_, err = session.(*xorm.Session).Table(role).Insert(role)
+		} else {
+			_, err = db.Engine.Table(role).Insert(role)
+		}
+
 		if err != nil {
 			log.Println("插入角色属性出错", err)
 			return common.New(constant.DBError, "数据库出错")
 		}
 		r.mutex.Lock()
 		r.attrs[rid] = role
-		r.mutex.Unlock()
+		defer r.mutex.Unlock()
 	}
 	return nil
 }

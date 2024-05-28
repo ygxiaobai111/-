@@ -6,6 +6,7 @@ import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/common"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/logic"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/middleware"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model/data"
 )
@@ -17,7 +18,7 @@ type ArmyController struct {
 
 func (a *ArmyController) Router(router *net.Router) {
 	g := router.Group("army")
-	g.AddRouter("myList", a.myList)
+	g.AddRouter("myList", a.myList, middleware.CheckRole())
 }
 
 func (a *ArmyController) myList(req *net.WsMsgReq, rsp *net.WsMsgRsp) {

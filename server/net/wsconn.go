@@ -1,5 +1,7 @@
 package net
 
+import "sync"
+
 /*
 wsconn.go 路由模型定义
 */
@@ -17,9 +19,31 @@ type RspBody struct {
 	Msg  interface{} `json:"msg"`
 }
 
+type WsContext struct {
+	mutex    sync.RWMutex
+	property map[string]interface{}
+}
+
+func (ws *WsContext) Set(key string, value interface{}) {
+	ws.mutex.Lock()
+	defer ws.mutex.Unlock()
+	ws.property[key] = value
+}
+
+func (ws *WsContext) Get(key string) interface{} {
+	ws.mutex.RLock()
+	defer ws.mutex.RUnlock()
+	value, ok := ws.property[key]
+	if ok {
+		return value
+	}
+	return nil
+}
+
 type WsMsgReq struct {
-	Body *ReqBody
-	Conn WSConn
+	Body    *ReqBody
+	Conn    WSConn
+	Context *WsContext
 }
 
 type WsMsgRsp struct {
