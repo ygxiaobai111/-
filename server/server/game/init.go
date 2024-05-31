@@ -6,6 +6,7 @@ import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/controller"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig/general"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/logic"
 )
 
 var Router = &net.Router{}
@@ -24,6 +25,15 @@ func Init() {
 	general.General.Load()
 	//加载技能配置
 	gameConfig.Skill.Load()
+
+	logic.BeforeInit()
+
+	//加载所有的建筑信息
+	logic.RoleBuildService.Load()
+	//加载所有的城池信息
+	logic.RoleCityService.Load()
+	//加载所有的角色属性
+	logic.RoleAttrService.Load()
 	initRouter()
 }
 
@@ -34,4 +44,5 @@ func initRouter() {
 	controller.DefaultArmyController.Router(Router)
 	controller.WarController.Router(Router)
 	controller.SkillController.Router(Router)
+	controller.InteriorController.Router(Router)
 }

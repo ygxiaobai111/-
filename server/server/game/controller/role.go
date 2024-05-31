@@ -3,6 +3,7 @@ package controller
 import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/constant"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/common"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/logic"
@@ -11,6 +12,7 @@ import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model/data"
 	utils "github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/util"
 	"log"
+	"time"
 )
 
 var DefaultRoleController = &RoleController{}
@@ -21,6 +23,7 @@ type RoleController struct {
 func (r *RoleController) Router(router *net.Router) {
 	g := router.Group("role")
 	g.Use(middleware.Log())
+	g.AddRouter("create", r.create)
 	g.AddRouter("enterServer", r.enterServer)
 	g.AddRouter("myProperty", r.myProperty, middleware.CheckRole())
 	g.AddRouter("posTagList", r.posTagList, middleware.CheckRole())
@@ -51,8 +54,12 @@ func (r *RoleController) enterServer(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 	}
 	uid := claim.Uid
 	err = logic.RoleService.EnterServer(uid, rspObj, req)
+
 	if err != nil {
+
 		log.Println("enterServer err:", err)
+		rspObj.Time = time.Now().Unix() / 1e6
+		rsp.Body.Msg = rspObj
 		rsp.Body.Code = err.(*common.MyError).Code()
 		return
 	}
@@ -126,4 +133,37 @@ func (r *RoleController) posTagList(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 	rsp.Body.Code = constant.OK
 	rsp.Body.Msg = rspObj
 
+}
+func (r *RoleController) create(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
+	reqObj := &model.CreateRoleReq{}
+	rspObj := &model.CreateRoleRsp{}
+	mapstructure.Decode(req.Body.Msg, reqObj)
+
+	rsp.Body.Seq = req.Body.Seq
+	rsp.Body.Name = req.Body.Name
+	role := &data.Role{}
+	ok, err := db.Engine.Where("uid=?", reqObj.UId).Get(role)
+	if err != nil {
+		rsp.Body.Code = constant.DBError
+		return
+	}
+	if ok {
+		rsp.Body.Code = constant.RoleAlreadyCreate
+		return
+	}
+	role.UId = reqObj.UId
+	role.Sex = reqObj.Sex
+	role.NickName = reqObj.NickName
+	role.Balance = 0
+	role.HeadId = reqObj.HeadId
+	role.CreatedAt = time.Now()
+	role.LoginTime = time.Now()
+	_, err = db.Engine.InsertOne(role)
+	if err != nil {
+		rsp.Body.Code = constant.DBError
+		return
+	}
+	rspObj.Role = role.ToModel().(model.Role)
+	rsp.Body.Code = constant.OK
+	rsp.Body.Msg = rspObj
 }

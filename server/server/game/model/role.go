@@ -146,3 +146,15 @@ type PosTagListRsp struct {
 type MyGeneralRsp struct {
 	Generals []General `json:"generals"`
 }
+
+type CreateRoleReq struct {
+	UId      int    `json:"uid"`
+	NickName string `json:"nickName"`
+	Sex      int8   `json:"sex"`
+	SId      int    `json:"sid"`
+	HeadId   int16  `json:"headId"`
+}
+
+type CreateRoleRsp struct {
+	Role Role `json:"role"`
+}

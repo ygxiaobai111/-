@@ -55,3 +55,47 @@ func (c *cityFacilityService) TryCreate(cid, rid int, req *net.WsMsgReq) error {
 	}
 	return nil
 }
+func (c *cityFacilityService) GetByRId(rid int) ([]*data.CityFacility, error) {
+	cf := make([]*data.CityFacility, 0)
+	err := db.Engine.Table(new(data.CityFacility)).Where("rid=?", rid).Find(&cf)
+	if err != nil {
+		log.Println(err)
+		return cf, common.New(constant.DBError, "数据库错误")
+	}
+	return cf, nil
+}
+
+func (c *cityFacilityService) GetYield(rid int) data.Yield {
+	//查询 把表中的设施 获取到
+	//设施的不同类型 去设施配置中查询匹配，匹配到增加产量的设施 木头 金钱 产量的计算
+	//设施的等级不同 产量也不同
+	cfs, err := c.GetByRId(rid)
+	var y data.Yield
+	if err == nil {
+		for _, v := range cfs {
+			facilities := v.Facility()
+			for _, fa := range facilities {
+				//计算等级 资源的产出是不同的
+				if fa.GetLevel() > 0 {
+					values := gameConfig.FacilityConf.GetValues(fa.Type, fa.GetLevel())
+					adds := gameConfig.FacilityConf.GetAdditions(fa.Type)
+					for i, aType := range adds {
+						if aType == gameConfig.TypeWood {
+							y.Wood += values[i]
+						} else if aType == gameConfig.TypeGrain {
+							y.Grain += values[i]
+						} else if aType == gameConfig.TypeIron {
+							y.Iron += values[i]
+						} else if aType == gameConfig.TypeStone {
+							y.Stone += values[i]
+						} else if aType == gameConfig.TypeTax {
+							y.Gold += values[i]
+						}
+					}
+				}
+
+			}
+		}
+	}
+	return y
+}

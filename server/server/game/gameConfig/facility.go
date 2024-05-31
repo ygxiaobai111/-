@@ -135,3 +135,45 @@ func (f *facilityConf) Load() {
 		f.facilitys[fac.Type] = fac
 	}
 }
+func (f *facilityConf) CostTime(fType int8, level int8) int {
+	if level <= 0 {
+		return 0
+	}
+	fa, ok := f.facilitys[fType]
+	if ok {
+		if int8(len(fa.Levels)) >= level {
+			return fa.Levels[level-1].Time - 2 //比客户端快2s，保证客户端倒计时完一定是升级成功了
+		} else {
+			return 0
+		}
+	} else {
+		return 0
+	}
+}
+
+func (f *facilityConf) GetValues(fType int8, level int8) []int {
+	if level <= 0 {
+		return []int{}
+	}
+
+	fa, ok := f.facilitys[fType]
+	if ok {
+		//防止等级溢出错误
+		if int8(len(fa.Levels)) >= level {
+			return fa.Levels[level-1].Values
+		} else {
+			return []int{}
+		}
+	} else {
+		return []int{}
+	}
+}
+
+func (f *facilityConf) GetAdditions(fType int8) []int8 {
+	fa, ok := f.facilitys[fType]
+	if ok {
+		return fa.Additions
+	} else {
+		return []int8{}
+	}
+}

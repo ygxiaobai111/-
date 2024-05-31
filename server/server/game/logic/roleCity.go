@@ -9,17 +9,43 @@ import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/global"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model/data"
+	utils "github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/util"
 	"log"
 	"math/rand"
+	"sync"
 	"time"
 	"xorm.io/xorm"
 )
 
-var RoleCityService = &roleCityService{}
-
-type roleCityService struct {
+var RoleCityService = &roleCityService{
+	posRC:  make(map[int]*data.MapRoleCity),
+	roleRC: make(map[int][]*data.MapRoleCity),
 }
 
+type roleCityService struct {
+	mutex sync.RWMutex
+	//位置 key posId
+	posRC map[int]*data.MapRoleCity
+	//key 角色id
+	roleRC map[int][]*data.MapRoleCity
+}
+
+func (r *roleCityService) Load() {
+	//查询所有的角色建筑
+	dbRB := make(map[int]*data.MapRoleCity)
+	db.Engine.Find(dbRB)
+
+	for _, v := range dbRB {
+		posId := global.ToPosition(v.X, v.Y)
+		r.posRC[posId] = v
+		_, ok := r.roleRC[v.RId]
+		if !ok {
+			r.roleRC[v.RId] = make([]*data.MapRoleCity, 0)
+		} else {
+			r.roleRC[v.RId] = append(r.roleRC[v.RId], v)
+		}
+	}
+}
 func (r *roleCityService) InitCity(rid int, name string, req *net.WsMsgReq) error {
 
 	roleCity := &data.MapRoleCity{}
@@ -36,7 +62,7 @@ func (r *roleCityService) InitCity(rid int, name string, req *net.WsMsgReq) erro
 			roleCity.X = rand.Intn(global.MapWith)
 			roleCity.Y = rand.Intn(global.MapHeight)
 			//这个城池 能不能在这个坐标点创建 需要判断 系统城池五格之内 不能有玩家的城池
-			if IsCanBuild(roleCity.X, roleCity.Y) {
+			if r.IsCanBuild(roleCity.X, roleCity.Y) {
 				roleCity.RId = rid
 				roleCity.Name = name
 				roleCity.CurDurable = gameConfig.Base.City.Durable
@@ -51,6 +77,16 @@ func (r *roleCityService) InitCity(rid int, name string, req *net.WsMsgReq) erro
 					log.Println("插入角色城池出错", err)
 					return common.New(constant.DBError, "数据库出错")
 				}
+				//将玩家城池加入组
+				posId := global.ToPosition(roleCity.X, roleCity.Y)
+				r.posRC[posId] = roleCity
+				_, ok := r.roleRC[rid]
+				if !ok {
+					r.roleRC[rid] = make([]*data.MapRoleCity, 0)
+				} else {
+					r.roleRC[rid] = append(r.roleRC[rid], roleCity)
+				}
+
 				//初始化城池的设施
 				if err := CityFacilityService.TryCreate(roleCity.CityId, rid, req); err != nil {
 					log.Println("城池设施出错", err)
@@ -64,7 +100,7 @@ func (r *roleCityService) InitCity(rid int, name string, req *net.WsMsgReq) erro
 	return nil
 }
 
-func IsCanBuild(x int, y int) bool {
+func (r *roleCityService) IsCanBuild(x int, y int) bool {
 	confs := gameConfig.MapRes.Confs
 	pIndex := global.ToPosition(x, y)
 	_, ok := confs[pIndex]
@@ -72,6 +108,10 @@ func IsCanBuild(x int, y int) bool {
 		return false
 	}
 	sysBuild := gameConfig.MapRes.SysBuild
+	//城池 1范围内 不能超过边界
+	if x+1 >= global.MapWith || y+1 >= global.MapHeight || y-1 < 0 || x-1 < 0 {
+		return false
+	}
 	//系统城池的5格内 不能创建玩家城池
 	//此处逻辑为遍历所有的系统城池，然后与玩家城池坐标进行判断 todo:可优化
 	for _, v := range sysBuild {
@@ -80,6 +120,16 @@ func IsCanBuild(x int, y int) bool {
 				x <= v.X+5 &&
 				y >= v.Y-5 &&
 				y <= v.Y+5 {
+				return false
+			}
+		}
+	}
+	//玩家城池的5格内 也不能创建城池
+	for i := x - 5; i <= x+5; i++ {
+		for j := y - 5; j <= y+5; j++ {
+			posId := global.ToPosition(i, j)
+			_, ok := r.posRC[posId]
+			if ok {
 				return false
 			}
 		}
@@ -100,5 +150,33 @@ func (r *roleCityService) GetRoleCitys(rid int) ([]model.MapRoleCity, error) {
 		modelCitys = append(modelCitys, v.ToModel().(model.MapRoleCity))
 	}
 	return modelCitys, nil
+
+}
+
+func (r *roleCityService) ScanBlock(req *model.ScanBlockReq) ([]model.MapRoleCity, error) {
+	x := req.X
+	y := req.Y
+	length := req.Length
+	var mrcs = make([]model.MapRoleCity, 0)
+	if x < 0 || x >= global.MapWith || y < 0 || y >= global.MapHeight {
+		return mrcs, nil
+	}
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	maxX := utils.MinInt(global.MapWith, x+length-1)
+	maxY := utils.MinInt(global.MapHeight, y+length-1)
+
+	//范围  x-length  x + length  y-length y+length
+	for i := x - length; i <= maxX; i++ {
+		for j := y - length; j <= maxY; j++ {
+			posId := global.ToPosition(i, j)
+			mrb, ok := r.posRC[posId]
+			if ok {
+				mrcs = append(mrcs, mrb.ToModel().(model.MapRoleCity))
+			}
+		}
+	}
+	log.Println("玩家城池：", mrcs)
+	return mrcs, nil
 
 }

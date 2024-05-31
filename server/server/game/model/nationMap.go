@@ -18,3 +18,15 @@ type Conf struct {
 	Durable  int    `json:"durable"`  //耐久
 	Defender int    `json:"defender"` //防御等级
 }
+
+type ScanBlockReq struct {
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Length int `json:"length"`
+}
+
+type ScanRsp struct {
+	MRBuilds []MapRoleBuild `json:"mr_builds"` //角色建筑，包含被占领的基础建筑
+	MCBuilds []MapRoleCity  `json:"mc_builds"` //角色城市
+	Armys    []Army         `json:"armys"`     //军队
+}

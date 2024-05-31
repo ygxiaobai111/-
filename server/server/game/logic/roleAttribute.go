@@ -22,6 +22,17 @@ type roleAttrService struct {
 	attrs map[int]*data.RoleAttribute
 }
 
+func (r *roleAttrService) Load() {
+	ras := make([]*data.RoleAttribute, 0)
+	err := db.Engine.Table(new(data.RoleAttribute)).Find(&ras)
+	if err != nil {
+		log.Println("roleAttrService Load err", err)
+	}
+	for _, v := range ras {
+		r.attrs[v.RId] = v
+	}
+
+}
 func (r *roleAttrService) TryCreate(rid int, req *net.WsMsgReq) error {
 
 	role := &data.RoleAttribute{}
@@ -81,4 +92,14 @@ func (r *roleAttrService) GetTagList(rid int) ([]model.PosTag, error) {
 		}
 	}
 	return posTags, nil
+}
+func (r *roleAttrService) Get(rid int) *data.RoleAttribute {
+
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	ra, ok := r.attrs[rid]
+	if ok {
+		return ra
+	}
+	return nil
 }
