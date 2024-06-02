@@ -13,3 +13,21 @@ type LoginReq struct {
 	Ip       string `json:"ip"`
 	Hardware string `json:"hardware"`
 }
+
+type LogoutReq struct {
+	UId int `json:"uid"`
+}
+
+type LogoutRsp struct {
+	UId int `json:"uid"`
+}
+
+type ReLoginReq struct {
+	Session  string `json:"session"`
+	Ip       string `json:"ip"`
+	Hardware string `json:"hardware"`
+}
+
+type ReLoginRsp struct {
+	Session string `json:"session"`
+}

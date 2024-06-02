@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/mitchellh/mapstructure"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/constant"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig"
@@ -22,6 +23,7 @@ func (i *interiorController) Router(router *net.Router) {
 
 	g.AddRouter("openCollect", i.openCollect, middleware.CheckRole())
 	g.AddRouter("collect", i.collect, middleware.CheckRole())
+	g.AddRouter("transform", i.transform, middleware.CheckRole())
 
 }
 
@@ -111,4 +113,46 @@ func (i *interiorController) collect(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 		ti := ra.LastCollectTime.Add(time.Duration(interval) * time.Second)
 		rspObj.NextTime = ti.UnixNano() / 1e6
 	}
+}
+
+func (i *interiorController) transform(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
+	//查询资源
+	//查询集市是否符合要求
+	//Form To From减去 To增加  0-3 0 木材 1 铁矿 2 石头 3 粮食
+	reqObj := &model.TransformReq{}
+	rspObj := &model.TransformRsp{}
+	mapstructure.Decode(req.Body.Msg, reqObj)
+	rsp.Body.Msg = rspObj
+	rsp.Body.Code = constant.OK
+
+	r, _ := req.Conn.GetProperty("role")
+	role := r.(*data.Role)
+	roleRes := logic.RoleResService.GetRoleRes(role.RId)
+	if roleRes == nil {
+		rsp.Body.Code = constant.DBError
+		return
+	}
+	//做交易的时候 主城做交易
+	rc := logic.RoleCityService.GetMainCity(role.RId)
+	if rc == nil {
+		rsp.Body.Code = constant.DBError
+		return
+	}
+
+	level := logic.CityFacilityService.GetFacilityLevel(rc.CityId, gameConfig.JiShi)
+	if level <= 0 {
+		rsp.Body.Code = constant.NotHasJiShi
+		return
+	}
+
+	roleRes.Wood -= reqObj.From[0]
+	roleRes.Wood += reqObj.To[0]
+	roleRes.Iron -= reqObj.From[1]
+	roleRes.Iron += reqObj.To[1]
+	roleRes.Stone -= reqObj.From[2]
+	roleRes.Stone += reqObj.To[2]
+	roleRes.Grain -= reqObj.From[3]
+	roleRes.Grain += reqObj.To[3]
+
+	roleRes.SyncExecute()
 }

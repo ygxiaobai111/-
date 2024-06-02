@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"github.com/mitchellh/mapstructure"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/constant"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/common"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/logic"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/middleware"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
@@ -18,6 +20,7 @@ type GeneralController struct {
 func (r *GeneralController) Router(router *net.Router) {
 	g := router.Group("general")
 	g.AddRouter("myGenerals", r.myGenerals, middleware.CheckRole())
+	g.AddRouter("drawGeneral", r.drawGeneral, middleware.CheckRole())
 }
 
 func (r *GeneralController) myGenerals(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
@@ -43,4 +46,37 @@ func (r *GeneralController) myGenerals(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 	rsp.Body.Code = constant.OK
 	rsp.Body.Msg = rspObj
 
+}
+func (r *GeneralController) drawGeneral(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
+	//1. 计算抽卡花费的金钱
+	//2. 判断金钱是否足够
+	//3. 抽卡的次数 + 已有的武将 卡池是否足够
+	//4. 随机生成武将即可（之前有实现）
+	//5. 金币的扣除
+	reqObj := &model.DrawGeneralReq{}
+	mapstructure.Decode(req.Body.Msg, reqObj)
+	rspObj := &model.DrawGeneralRsp{}
+	rsp.Body.Code = constant.OK
+	rsp.Body.Msg = rspObj
+	role, _ := req.Conn.GetProperty("role")
+	rid := role.(*data.Role).RId
+	cost := gameConfig.Base.General.DrawGeneralCost * reqObj.DrawTimes
+	if !logic.RoleResService.IsEnoughGold(rid, cost) {
+		rsp.Body.Code = constant.GoldNotEnough
+		return
+	}
+	limit := gameConfig.Base.General.Limit
+
+	gs, err := logic.GeneralService.GetGenerals(rid)
+	if err != nil {
+		rsp.Body.Code = err.(*common.MyError).Code()
+		return
+	}
+	if len(gs)+reqObj.DrawTimes > limit {
+		rsp.Body.Code = constant.OutGeneralLimit
+		return
+	}
+	mgs := logic.GeneralService.Draw(rid, reqObj.DrawTimes)
+	logic.RoleResService.CostGold(rid, cost)
+	rspObj.Generals = mgs
 }

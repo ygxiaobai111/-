@@ -82,6 +82,8 @@ func (r *roleService) EnterServer(uid int, rsp *model.EnterServerRsp, req *net.W
 		log.Println("数据库出错", err)
 		return common.New(constant.DBError, "数据库出错")
 	}
+	log.Println("“user", rsp.Role)
+
 	return nil
 }
 
@@ -96,4 +98,17 @@ func (r *roleService) GetRoleRes(rid int) (model.RoleRes, error) {
 		return roleRes.ToModel().(model.RoleRes), nil
 	}
 	return model.RoleRes{}, common.New(constant.DBError, "角色资源不存在")
+}
+
+func (r *roleService) Get(rid int) *data.Role {
+	role := &data.Role{}
+	ok, err := db.Engine.Table(role).Where("rid=?", rid).Get(role)
+	if err != nil {
+		log.Println("查询角色出错", err)
+		return nil
+	}
+	if ok {
+		return role
+	}
+	return nil
 }

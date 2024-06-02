@@ -31,7 +31,17 @@ func (r *roleAttrService) Load() {
 	for _, v := range ras {
 		r.attrs[v.RId] = v
 	}
-
+	//查询所有的联盟，进行匹配
+	uns := CoalitionService.ListCoalition()
+	for _, un := range uns {
+		for _, ma := range un.MemberArray {
+			ra, ok := r.attrs[ma]
+			if ok {
+				ra.UnionId = un.Id
+				r.attrs[ma] = ra
+			}
+		}
+	}
 }
 func (r *roleAttrService) TryCreate(rid int, req *net.WsMsgReq) error {
 
@@ -42,10 +52,6 @@ func (r *roleAttrService) TryCreate(rid int, req *net.WsMsgReq) error {
 		return common.New(constant.DBError, "数据库出错")
 	}
 	if ok {
-		//缓存
-		r.mutex.Lock()
-		r.attrs[rid] = role
-		defer r.mutex.Unlock()
 		return nil
 	} else {
 		//初始化
@@ -102,4 +108,14 @@ func (r *roleAttrService) Get(rid int) *data.RoleAttribute {
 		return ra
 	}
 	return nil
+}
+func (r *roleAttrService) GetUnion(rid int) int {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	ra, ok := r.attrs[rid]
+	log.Println("rid union", rid, ra)
+	if ok {
+		return ra.UnionId
+	}
+	return 0
 }

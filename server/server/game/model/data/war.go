@@ -1,9 +1,35 @@
 package data
 
 import (
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	"time"
 )
+
+var WarReportDao = &warReportDao{
+	wrChan: make(chan *WarReport, 100),
+}
+
+type warReportDao struct {
+	wrChan chan *WarReport
+}
+
+func (w *warReportDao) running() {
+	for {
+		select {
+		case wr := <-w.wrChan:
+			if wr.Id <= 0 {
+				db.Engine.Table(wr).Insert(wr)
+			} else {
+				db.Engine.Table(wr).Update(wr)
+			}
+		}
+	}
+}
+
+func init() {
+	go WarReportDao.running()
+}
 
 type WarReport struct {
 	Id                int       `xorm:"id pk autoincr"`
@@ -55,4 +81,38 @@ func (w *WarReport) ToModel() interface{} {
 	p.X = w.X
 	p.X = w.X
 	return p
+}
+
+func (w *WarReport) SyncExecute() {
+	WarReportDao.wrChan <- w
+	w.Push()
+}
+
+/* 推送同步 begin */
+func (w *WarReport) IsCellView() bool {
+	return false
+}
+
+func (w *WarReport) IsCanView(rid, x, y int) bool {
+	return false
+}
+
+func (w *WarReport) BelongToRId() []int {
+	return []int{w.AttackRid, w.DefenseRid}
+}
+
+func (w *WarReport) PushMsgName() string {
+	return "warReport.push"
+}
+
+func (w *WarReport) Position() (int, int) {
+	return w.X, w.Y
+}
+
+func (w *WarReport) TPosition() (int, int) {
+	return -1, -1
+}
+
+func (w *WarReport) Push() {
+
 }

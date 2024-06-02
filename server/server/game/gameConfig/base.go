@@ -120,3 +120,12 @@ func (b *basic) Load() {
 		panic(err)
 	}
 }
+func (b *basic) GetNPC(lv int8) (npcLevel, bool) {
+	levels := b.Npc.Levels
+	for index, v := range levels {
+		if index+1 == int(lv) {
+			return v, true
+		}
+	}
+	return npcLevel{}, false
+}

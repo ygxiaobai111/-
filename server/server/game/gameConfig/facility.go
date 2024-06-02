@@ -33,6 +33,13 @@ const (
 	TypeSoldierLimit   = 24 //带兵数量
 	TypeVanguardLimit  = 25 //前锋数量
 )
+const (
+	Main          = 0  //主城
+	JiaoChang     = 13 //校场
+	TongShuaiTing = 14 //统帅厅
+	JiShi         = 15 //集市
+	MBS           = 16 //募兵所
+)
 
 type conditions struct {
 	Type  int `json:"type"`
@@ -176,4 +183,20 @@ func (f *facilityConf) GetAdditions(fType int8) []int8 {
 	} else {
 		return []int8{}
 	}
+}
+func (f *facilityConf) MaxLevel(fType int8) int {
+	fa, ok := f.facilitys[fType]
+	if ok {
+		return len(fa.Levels)
+	} else {
+		return 0
+	}
+}
+
+func (f *facilityConf) Need(fType int8, level int8) NeedRes {
+	fa, ok := f.facilitys[fType]
+	if ok {
+		return fa.Levels[level].Need
+	}
+	return NeedRes{}
 }

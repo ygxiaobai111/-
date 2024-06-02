@@ -21,10 +21,14 @@ func Init() {
 	gameConfig.MapRes.Load()
 	//加载城池设施配置
 	gameConfig.FacilityConf.Load()
-	//加载武将配置
+	//加载武将配置信息
 	general.General.Load()
-	//加载技能配置
+	general.GeneralBasic.Load()
+	//加载技能配置信息
 	gameConfig.Skill.Load()
+	gameConfig.MapBCConf.Load()
+
+	general.GeneralArms.Load()
 
 	logic.BeforeInit()
 
@@ -32,8 +36,13 @@ func Init() {
 	logic.RoleBuildService.Load()
 	//加载所有的城池信息
 	logic.RoleCityService.Load()
+	//加载联盟的所有信息
+	logic.CoalitionService.Load()
 	//加载所有的角色属性
 	logic.RoleAttrService.Load()
+	//加载角色资源
+	logic.RoleResService.Load()
+	logic.ArmyService.Init()
 	initRouter()
 }
 
@@ -45,4 +54,6 @@ func initRouter() {
 	controller.WarController.Router(Router)
 	controller.SkillController.Router(Router)
 	controller.InteriorController.Router(Router)
+	controller.UnionController.Router(Router)
+	controller.CityController.Router(Router)
 }

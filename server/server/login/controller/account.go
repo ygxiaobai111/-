@@ -23,6 +23,8 @@ type Account struct {
 func (a *Account) Router(r *net.Router) {
 	g := r.Group("account")
 	g.AddRouter("login", a.login)
+	g.AddRouter("logout", a.logout)
+	g.AddRouter("reLogin", a.reLogin)
 }
 
 func (a *Account) login(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
@@ -94,4 +96,65 @@ func (a *Account) login(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 	}
 	//缓存一下 此用户和当前的ws连接
 	net.Mgr.UserLogin(req.Conn, user.UId, token)
+}
+
+func (a *Account) logout(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
+	reqObj := &proto.LogoutReq{}
+	rspObj := &proto.LogoutRsp{}
+	mapstructure.Decode(req.Body.Msg, reqObj)
+	rsp.Body.Msg = rspObj
+	rspObj.UId = reqObj.UId
+	rsp.Body.Code = constant.OK
+
+	tt := time.Now()
+	//登出，写记录
+	lh := &model.LoginHistory{UId: reqObj.UId, CTime: tt, State: model.Logout}
+	db.Engine.Insert(lh)
+
+	ll := &model.LoginLast{}
+	ok, _ := db.Engine.Table(ll).Where("uid=?", reqObj.UId).Get(ll)
+	if ok {
+		ll.IsLogout = 1
+		ll.LogoutTime = time.Now()
+		db.Engine.ID(ll.Id).Cols("is_logout", "logout_time").Update(ll)
+
+	} else {
+		ll = &model.LoginLast{UId: reqObj.UId, LogoutTime: tt, IsLogout: 0}
+		db.Engine.Insert(ll)
+	}
+
+	net.Mgr.UserLogout(req.Conn)
+}
+
+func (a *Account) reLogin(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
+	reqObj := &proto.ReLoginReq{}
+	rspObj := &proto.ReLoginRsp{}
+	mapstructure.Decode(req.Body.Msg, reqObj)
+	if reqObj.Session == "" {
+		rsp.Body.Code = constant.SessionInvalid
+		return
+	}
+
+	rsp.Body.Msg = rspObj
+	rspObj.Session = reqObj.Session
+
+	_, c, err := util.ParseToken(reqObj.Session)
+	if err != nil {
+		rsp.Body.Code = constant.SessionInvalid
+	} else {
+		//数据库验证一下
+		ll := &model.LoginLast{}
+		db.Engine.Table(ll).Where("uid=?", c.Uid).Get(ll)
+
+		if ll.Session == reqObj.Session {
+			if ll.Hardware == reqObj.Hardware {
+				rsp.Body.Code = constant.OK
+				net.Mgr.UserLogin(req.Conn, c.Uid, reqObj.Session)
+			} else {
+				rsp.Body.Code = constant.HardwareIncorrect
+			}
+		} else {
+			rsp.Body.Code = constant.SessionInvalid
+		}
+	}
 }

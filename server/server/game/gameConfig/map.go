@@ -84,3 +84,26 @@ func (m *mapRes) Load() {
 		}
 	}
 }
+func (m *mapRes) ToPositionMap(x, y int) (NationalMap, bool) {
+	posId := global.ToPosition(x, y)
+	nm, ok := m.Confs[posId]
+	return nm, ok
+}
+
+func (m *mapRes) PositionBuild(x int, y int) (NationalMap, bool) {
+	posId := global.ToPosition(x, y)
+	nm, ok := m.Confs[posId]
+	return nm, ok
+}
+
+func (m *mapRes) IsCanBuild(x int, y int) bool {
+	posId := global.ToPosition(x, y)
+	nm, ok := m.Confs[posId]
+	if ok {
+		if nm.Type == 0 {
+			return false
+		}
+		return true
+	}
+	return false
+}

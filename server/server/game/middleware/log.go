@@ -12,6 +12,7 @@ func Log() net.MiddlewareFunc {
 			log.Println("请求路由", req.Body.Name)
 			log.Println("请求参数", fmt.Sprintf("%v", req.Body.Msg))
 			next(req, rsp)
+
 		}
 	}
 }

@@ -11,11 +11,13 @@ import (
 	utils "github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/util"
 	"log"
 	"sync"
+	"time"
 )
 
 var RoleBuildService = &roleBuildService{
-	posRB:  make(map[int]*data.MapRoleBuild),
-	roleRB: make(map[int][]*data.MapRoleBuild),
+	posRB:    make(map[int]*data.MapRoleBuild),
+	roleRB:   make(map[int][]*data.MapRoleBuild),
+	giveUpRB: make(map[int64]map[int]*data.MapRoleBuild),
 }
 
 func (r *roleBuildService) Load() {
@@ -54,18 +56,21 @@ func (r *roleBuildService) Load() {
 		_, ok := r.roleRB[v.RId]
 		if !ok {
 			r.roleRB[v.RId] = make([]*data.MapRoleBuild, 0)
-		} else {
-			r.roleRB[v.RId] = append(r.roleRB[v.RId], v)
 		}
+		r.roleRB[v.RId] = append(r.roleRB[v.RId], v)
+
 	}
 }
 
 type roleBuildService struct {
-	mutex sync.RWMutex
+	mutex       sync.RWMutex
+	giveUpMutex sync.RWMutex
 	//位置 key posId
 	posRB map[int]*data.MapRoleBuild
 	//key 角色id
 	roleRB map[int][]*data.MapRoleBuild
+	//放弃的
+	giveUpRB map[int64]map[int]*data.MapRoleBuild
 }
 
 func (r *roleBuildService) GetBuilds(rid int) ([]model.MapRoleBuild, error) {
@@ -123,4 +128,145 @@ func (r *roleBuildService) GetYield(rid int) data.Yield {
 		}
 	}
 	return yield
+}
+
+func (r *roleBuildService) PositionBuild(x int, y int) (*data.MapRoleBuild, bool) {
+	posId := global.ToPosition(x, y)
+	rb, ok := r.posRB[posId]
+	return rb, ok
+}
+
+func (r *roleBuildService) BuildCnt(rid int) int {
+	rbs, ok := r.roleRB[rid]
+	if ok {
+		return len(rbs)
+	}
+	return 0
+}
+
+func (r *roleBuildService) RemoveFromRole(build *data.MapRoleBuild) {
+	rbs, ok := r.roleRB[build.RId]
+	if ok {
+		for i, v := range rbs {
+			if v.Id == build.Id {
+				r.roleRB[build.RId] = append(rbs[:i], rbs[i+1:]...)
+				break
+			}
+		}
+	}
+	r.giveUpMutex.Lock()
+	delete(r.giveUpRB, build.GiveUpTime)
+	r.giveUpMutex.Unlock()
+
+	build.Reset()
+	build.SyncExecute()
+}
+
+func (r *roleBuildService) MapResTypeLevel(x int, y int) (bool, int8, int8) {
+	posId := global.ToPosition(x, y)
+	nm, ok := gameConfig.MapRes.Confs[posId]
+	if ok {
+		return true, nm.Type, nm.Level
+	}
+	return false, 0, 0
+}
+
+func (r *roleBuildService) AddBuild(rid int, x int, y int) (*data.MapRoleBuild, bool) {
+	posId := global.ToPosition(x, y)
+	rb, ok := r.posRB[posId]
+	if ok {
+		if r.roleRB[rid] == nil {
+			r.roleRB[rid] = make([]*data.MapRoleBuild, 0)
+		}
+		r.roleRB[rid] = append(r.roleRB[rid], rb)
+		return rb, true
+	} else {
+		//数据库插入
+		if b, ok := gameConfig.MapRes.PositionBuild(x, y); ok {
+			if cfg := gameConfig.MapBuildConf.BuildConfig(b.Type, b.Level); cfg != nil {
+				rb := &data.MapRoleBuild{
+					RId: rid, X: x, Y: y,
+					Type: b.Type, Level: b.Level, OPLevel: b.Level,
+					Name: cfg.Name, CurDurable: cfg.Durable,
+					MaxDurable: cfg.Durable,
+				}
+				rb.Init()
+
+				if _, err := db.Engine.Table(model.MapRoleBuild{}).Insert(rb); err == nil {
+					r.posRB[posId] = rb
+					if _, ok := r.roleRB[rid]; ok == false {
+						r.roleRB[rid] = make([]*data.MapRoleBuild, 0)
+					}
+					r.roleRB[rid] = append(r.roleRB[rid], rb)
+					return rb, true
+				}
+			}
+		}
+	}
+	return nil, false
+}
+
+func (r *roleBuildService) RoleFortressCnt(rid int) int {
+	builds, err := r.GetBuilds(rid)
+	if err != nil {
+		return 0
+	}
+	var cnt = 0
+	for _, v := range builds {
+		if v.Type == gameConfig.MapBuildFortress {
+			cnt += 1
+		}
+	}
+	return cnt
+}
+
+func (r *roleBuildService) GiveUp(build *data.MapRoleBuild) int {
+
+	if build.IsWarFree() {
+		return constant.BuildWarFree
+	}
+
+	if build.GiveUpTime > 0 {
+		return constant.BuildGiveUpAlready
+	}
+
+	build.GiveUpTime = time.Now().Unix() + gameConfig.Base.Build.GiveUpTime
+
+	build.SyncExecute()
+
+	//需要放入内存当中
+	r.giveUpMutex.Lock()
+	defer r.giveUpMutex.Unlock()
+	_, ok := r.giveUpRB[build.GiveUpTime]
+	if !ok {
+		r.giveUpRB[build.GiveUpTime] = make(map[int]*data.MapRoleBuild)
+	}
+	r.giveUpRB[build.GiveUpTime][build.Id] = build
+
+	return constant.OK
+}
+
+func (r *roleBuildService) checkGiveUp() {
+	for {
+		time.Sleep(time.Second * 2)
+		cur := time.Now().Unix()
+		var ret []int
+		var builds []*data.MapRoleBuild
+		for i := cur - 10; i <= cur; i++ {
+			rbs, ok := r.giveUpRB[i]
+			if ok {
+				for _, v := range rbs {
+					builds = append(builds, v)
+					//当前的坐标 放弃土地后 当前土地上的部队需要返回
+					ret = append(ret, global.ToPosition(v.X, v.Y))
+				}
+			}
+		}
+		for _, build := range builds {
+			r.RemoveFromRole(build)
+		}
+		for _, posId := range ret {
+			ArmyService.GiveUp(posId)
+		}
+	}
 }

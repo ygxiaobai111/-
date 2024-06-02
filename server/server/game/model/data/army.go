@@ -1,8 +1,13 @@
 package data
 
 import (
+	"encoding/json"
+	"fmt"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
+
 	"time"
+	"xorm.io/xorm"
 )
 
 const (
@@ -20,12 +25,39 @@ const (
 	ArmyRunning = 1
 )
 
+var ArmyDao = &armyDao{
+	armyChan: make(chan *Army, 100),
+}
+
+type armyDao struct {
+	armyChan chan *Army
+}
+
+func (a *armyDao) running() {
+	for {
+		select {
+		case army := <-a.armyChan:
+			if army.Id > 0 {
+				db.Engine.Table(army).ID(army.Id).Cols(
+					"soldiers", "generals", "conscript_times",
+					"conscript_cnts", "cmd", "from_x", "from_y", "to_x",
+					"to_y", "start", "end").Update(army)
+			}
+		}
+	}
+
+}
+
+func init() {
+	go ArmyDao.running()
+}
+
 // 军队
 type Army struct {
 	Id                 int        `xorm:"id pk autoincr"`
 	RId                int        `xorm:"rid"`
 	CityId             int        `xorm:"cityId"`
-	Order              int8       `xorm:"order"`
+	Order              int8       `xorm:"a_order"`
 	Generals           string     `xorm:"generals"`
 	Soldiers           string     `xorm:"soldiers"`
 	ConscriptTimes     string     `xorm:"conscript_times"` //征兵结束时间，json数组
@@ -51,6 +83,70 @@ func (a *Army) TableName() string {
 	return "army"
 }
 
+// 执行update操作之前进行的操作
+func (a *Army) BeforeUpdate() {
+	a.beforeModify()
+}
+func (a *Army) beforeModify() {
+	data, _ := json.Marshal(a.GeneralArray)
+	a.Generals = string(data)
+
+	data, _ = json.Marshal(a.SoldierArray)
+	a.Soldiers = string(data)
+
+	data, _ = json.Marshal(a.ConscriptTimeArray)
+	a.ConscriptTimes = string(data)
+
+	data, _ = json.Marshal(a.ConscriptCntArray)
+	a.ConscriptCnts = string(data)
+}
+
+// 执行insert操作之前执行的
+func (a *Army) BeforeInsert() {
+	a.beforeModify()
+}
+
+func (a *Army) AfterSet(name string, cell xorm.Cell) {
+	//[0,0,0]
+	if name == "generals" {
+		a.GeneralArray = []int{0, 0, 0}
+		if cell != nil {
+			gs, ok := (*cell).([]uint8)
+			if ok {
+				json.Unmarshal(gs, &a.GeneralArray)
+				fmt.Println(a.GeneralArray)
+			}
+		}
+	} else if name == "soldiers" {
+		a.SoldierArray = []int{0, 0, 0}
+		if cell != nil {
+			ss, ok := (*cell).([]uint8)
+			if ok {
+				json.Unmarshal(ss, &a.SoldierArray)
+				fmt.Println(a.SoldierArray)
+			}
+		}
+	} else if name == "conscript_times" {
+		a.ConscriptTimeArray = []int64{0, 0, 0}
+		if cell != nil {
+			ss, ok := (*cell).([]uint8)
+			if ok {
+				json.Unmarshal(ss, &a.ConscriptTimeArray)
+				fmt.Println(a.ConscriptTimeArray)
+			}
+		}
+	} else if name == "conscript_cnts" {
+		a.ConscriptCntArray = []int{0, 0, 0}
+		if cell != nil {
+			ss, ok := (*cell).([]uint8)
+			if ok {
+				json.Unmarshal(ss, &a.ConscriptCntArray)
+				fmt.Println(a.ConscriptCntArray)
+			}
+		}
+	}
+}
+
 func (a *Army) ToModel() interface{} {
 	p := model.Army{}
 	p.CityId = a.CityId
@@ -70,4 +166,66 @@ func (a *Army) ToModel() interface{} {
 	p.Start = a.Start.Unix()
 	p.End = a.End.Unix()
 	return p
+}
+
+// pos 0-2
+func (a *Army) PositionCanModify(pos int) bool {
+	if pos >= 3 || pos < 0 {
+		return false
+	}
+	if a.Cmd == ArmyCmdIdle {
+		return true
+	} else if a.Cmd == ArmyCmdConscript {
+		endTime := a.ConscriptTimeArray[pos]
+		return endTime == 0
+	} else {
+		return false
+	}
+}
+
+func (a *Army) SyncExecute() {
+	ArmyDao.armyChan <- a
+}
+
+func (a *Army) CheckConscript() {
+	if a.Cmd == ArmyCmdConscript {
+		finish := true
+		for i, v := range a.ConscriptTimeArray {
+			var cur = time.Now().Unix()
+			if cur >= v {
+				//征兵完成
+				a.SoldierArray[i] = a.SoldierArray[i] + a.ConscriptCntArray[i]
+				a.ConscriptTimeArray[i] = 0
+				a.ConscriptCntArray[i] = 0
+			} else {
+				finish = false
+			}
+		}
+		if finish {
+			a.Cmd = ArmyCmdIdle
+		}
+	}
+
+}
+func (a *Army) IsCanOutWar() bool {
+	//空闲状态
+	return a.Gens != nil && a.Cmd == ArmyCmdIdle
+}
+
+func (a *Army) IsIdle() bool {
+	return a.Cmd == ArmyCmdIdle
+}
+
+func (a *Army) ToSoldier() {
+	if a.SoldierArray != nil {
+		data, _ := json.Marshal(a.SoldierArray)
+		a.Soldiers = string(data)
+	}
+}
+
+func (a *Army) ToGeneral() {
+	if a.GeneralArray != nil {
+		data, _ := json.Marshal(a.GeneralArray)
+		a.Generals = string(data)
+	}
 }

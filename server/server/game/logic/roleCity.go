@@ -18,12 +18,14 @@ import (
 )
 
 var RoleCityService = &roleCityService{
+	dbRB:   make(map[int]*data.MapRoleCity),
 	posRC:  make(map[int]*data.MapRoleCity),
 	roleRC: make(map[int][]*data.MapRoleCity),
 }
 
 type roleCityService struct {
 	mutex sync.RWMutex
+	dbRB  map[int]*data.MapRoleCity
 	//位置 key posId
 	posRC map[int]*data.MapRoleCity
 	//key 角色id
@@ -32,18 +34,17 @@ type roleCityService struct {
 
 func (r *roleCityService) Load() {
 	//查询所有的角色建筑
-	dbRB := make(map[int]*data.MapRoleCity)
-	db.Engine.Find(dbRB)
+	db.Engine.Find(r.dbRB)
 
-	for _, v := range dbRB {
+	for _, v := range r.dbRB {
 		posId := global.ToPosition(v.X, v.Y)
 		r.posRC[posId] = v
 		_, ok := r.roleRC[v.RId]
 		if !ok {
 			r.roleRC[v.RId] = make([]*data.MapRoleCity, 0)
-		} else {
-			r.roleRC[v.RId] = append(r.roleRC[v.RId], v)
 		}
+		r.roleRC[v.RId] = append(r.roleRC[v.RId], v)
+
 	}
 }
 func (r *roleCityService) InitCity(rid int, name string, req *net.WsMsgReq) error {
@@ -86,6 +87,8 @@ func (r *roleCityService) InitCity(rid int, name string, req *net.WsMsgReq) erro
 				} else {
 					r.roleRC[rid] = append(r.roleRC[rid], roleCity)
 				}
+
+				r.dbRB[roleCity.CityId] = roleCity
 
 				//初始化城池的设施
 				if err := CityFacilityService.TryCreate(roleCity.CityId, rid, req); err != nil {
@@ -179,4 +182,38 @@ func (r *roleCityService) ScanBlock(req *model.ScanBlockReq) ([]model.MapRoleCit
 	log.Println("玩家城池：", mrcs)
 	return mrcs, nil
 
+}
+
+func (r *roleCityService) Get(cid int) (*data.MapRoleCity, bool) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	rc, ok := r.dbRB[cid]
+	if ok {
+		return rc, true
+	}
+	return nil, false
+}
+
+func (r *roleCityService) GetMainCity(rid int) *data.MapRoleCity {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	rcs, ok := r.roleRC[rid]
+	if ok {
+		for _, v := range rcs {
+			if v.IsMain == 1 {
+				return v
+			}
+		}
+	}
+	return nil
+}
+
+func (r *roleCityService) GetCityCost(cid int) int8 {
+	return CityFacilityService.GetCost(cid) + gameConfig.Base.City.Cost
+}
+
+func (r *roleCityService) PositionCity(x int, y int) (*data.MapRoleCity, bool) {
+	posId := global.ToPosition(x, y)
+	rc, ok := r.posRC[posId]
+	return rc, ok
 }

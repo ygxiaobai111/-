@@ -105,6 +105,31 @@ type General struct {
 	State         int8      `json:"state"`
 }
 
+// [[1382,100023,99,1,1,0,1,3,0,0,0,0,0,0,0,0,0,5],[1379,100074,99,1,1,500,1,3,0,0,0,0,0,0,0,0,0,5],[1343,100480,99,1,1,500,1,3,0,0,0,0,0,0,0,0,0,5]]
+func (g *General) ToArray() []int {
+	r := make([]int, 0)
+
+	r = append(r, g.Id)
+	r = append(r, g.CfgId)
+	r = append(r, g.PhysicalPower)
+	r = append(r, int(g.Order))
+	r = append(r, int(g.Level))
+	r = append(r, g.Exp)
+	r = append(r, g.CityId)
+	r = append(r, g.CurArms)
+	r = append(r, g.HasPrPoint)
+	r = append(r, g.UsePrPoint)
+	r = append(r, g.AttackDis)
+	r = append(r, g.ForceAdded)
+	r = append(r, g.StrategyAdded)
+	r = append(r, g.SpeedAdded)
+	r = append(r, g.DefenseAdded)
+	r = append(r, g.DestroyAdded)
+	r = append(r, int(g.StarLv))
+	r = append(r, int(g.Star))
+	return r
+}
+
 type MapRoleCity struct {
 	CityId     int    `json:"cityId"`
 	RId        int    `json:"rid"`

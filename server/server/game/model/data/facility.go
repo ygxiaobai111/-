@@ -2,7 +2,9 @@ package data
 
 import (
 	"encoding/json"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig"
+	"log"
 	"time"
 )
 
@@ -25,6 +27,39 @@ func (f *Facility) GetLevel() int8 {
 	return f.PrivateLevel
 }
 
+func (f *Facility) CanUp() bool {
+	f.GetLevel()
+	return f.UpTime == 0
+}
+
+func (f *Facility) GetMaxLevel(fType int8) int {
+	return gameConfig.FacilityConf.MaxLevel(fType)
+}
+
+var CityFacDao = &cityFacDao{
+	cfChan: make(chan *CityFacility),
+}
+
+type cityFacDao struct {
+	cfChan chan *CityFacility
+}
+
+func (c *cityFacDao) running() {
+	for {
+		select {
+		case cf := <-c.cfChan:
+			_, err := db.Engine.Table(new(CityFacility)).ID(cf.Id).Cols("facilities").Update(cf)
+			if err != nil {
+				log.Println("cityFacDao running error", err)
+			}
+		}
+	}
+}
+
+func init() {
+	go CityFacDao.running()
+}
+
 type CityFacility struct {
 	Id         int    `xorm:"id pk autoincr"`
 	RId        int    `xorm:"rid"`
@@ -36,9 +71,18 @@ func (c *CityFacility) TableName() string {
 	return "city_facility"
 }
 
-// Facility 反序列化
 func (c *CityFacility) Facility() []Facility {
 	facilities := make([]Facility, 0)
 	json.Unmarshal([]byte(c.Facilities), &facilities)
 	return facilities
+}
+
+func (c *CityFacility) Facility1() []*Facility {
+	facilities := make([]*Facility, 0)
+	json.Unmarshal([]byte(c.Facilities), &facilities)
+	return facilities
+}
+
+func (c *CityFacility) SyncExecute() {
+	CityFacDao.cfChan <- c
 }
