@@ -143,7 +143,7 @@ func (c *cityFacilityService) UpFacility(rid int, cid int, fType int8) (*data.Fa
 				return nil, common.New(constant.UpError, "不能升级")
 			}
 			//先判断资源使用多少 ，判断用户资源是否足够
-			need := gameConfig.FacilityConf.Need(fType, fac.GetLevel()+1)
+			need := gameConfig.FacilityConf.Need(fType, fac.GetLevel())
 			ok := RoleResService.TryUseNeed(rid, need)
 			if !ok {
 				return nil, common.New(constant.ResNotEnough, "资源不足不能升级")
