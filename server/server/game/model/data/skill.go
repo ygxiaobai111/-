@@ -1,6 +1,11 @@
 package data
 
-import "github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
+	"xorm.io/xorm"
+)
 
 // 军队
 type Skill struct {
@@ -11,6 +16,19 @@ type Skill struct {
 	Generals       []int  `xorm:"-"`
 }
 
+func (a *Skill) AfterSet(name string, cell xorm.Cell) {
+	//[0,0,0]
+	if name == "belong_generals" {
+		a.Generals = make([]int, 0)
+		if cell != nil {
+			gs, ok := (*cell).([]uint8)
+			if ok {
+				json.Unmarshal(gs, &a.Generals)
+				fmt.Println(a.Generals)
+			}
+		}
+	}
+}
 func NewSkill(rid int, cfgId int) *Skill {
 	return &Skill{
 		CfgId:          cfgId,

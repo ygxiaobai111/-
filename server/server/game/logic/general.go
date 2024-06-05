@@ -101,6 +101,9 @@ func (g *generalService) NewGeneral(cfgId int, rid int, level int8) (*data.Gener
 	//初始 武将 无技能 但是有三个技能槽
 	sa := make([]*model.GSkill, 3)
 	ss, _ := json.Marshal(sa)
+	if level <= 0 {
+		level = 1
+	}
 	gen := &data.General{
 		PhysicalPower: gameConfig.Base.General.PhysicalPowerLimit,
 		RId:           rid,

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig/general"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	"log"
@@ -136,7 +137,7 @@ func (g *General) ToModel() interface{} {
 
 func (g *General) SyncExecute() {
 	GeneralDao.genChan <- g
-
+	g.Push()
 }
 
 func (g *General) GetDestroy() int {
@@ -200,4 +201,8 @@ func (g *General) Position() (int, int) {
 
 func (g *General) TPosition() (int, int) {
 	return -1, -1
+}
+
+func (g *General) Push() {
+	net.Mgr.Push(g)
 }

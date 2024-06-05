@@ -2,6 +2,7 @@ package data
 
 import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	"time"
 )
@@ -21,7 +22,7 @@ func (w *warReportDao) running() {
 			if wr.Id <= 0 {
 				db.Engine.Table(wr).Insert(wr)
 			} else {
-				db.Engine.Table(wr).Update(wr)
+				db.Engine.Table(wr).ID(wr.Id).Update(wr)
 			}
 		}
 	}
@@ -114,5 +115,5 @@ func (w *WarReport) TPosition() (int, int) {
 }
 
 func (w *WarReport) Push() {
-
+	net.Mgr.Push(w)
 }

@@ -2,6 +2,7 @@ package data
 
 import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	"log"
@@ -22,7 +23,8 @@ func (m *mapRoleCityDao) running() {
 		select {
 		case rc := <-m.rcChan:
 			if rc.CityId > 0 {
-				_, err := db.Engine.Table(rc).Update(rc)
+				//where  city_id = ?
+				_, err := db.Engine.Table(rc).ID(rc.CityId).Update(rc)
 				if err != nil {
 					log.Println("mapRoleCityDao running error", err)
 				}
@@ -89,5 +91,33 @@ func (m *MapRoleCity) DurableChange(change int) {
 
 func (m *MapRoleCity) SyncExecute() {
 	RoleCityDao.rcChan <- m
+	m.Push()
+}
 
+/* 推送同步 begin */
+func (m *MapRoleCity) IsCellView() bool {
+	return true
+}
+
+func (m *MapRoleCity) IsCanView(rid, x, y int) bool {
+	return true
+}
+
+func (m *MapRoleCity) BelongToRId() []int {
+	return []int{m.RId}
+}
+
+func (m *MapRoleCity) PushMsgName() string {
+	return "roleCity.push"
+}
+
+func (m *MapRoleCity) Position() (int, int) {
+	return m.X, m.Y
+}
+
+func (m *MapRoleCity) TPosition() (int, int) {
+	return -1, -1
+}
+func (m *MapRoleCity) Push() {
+	net.Mgr.Push(m)
 }

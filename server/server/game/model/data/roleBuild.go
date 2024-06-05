@@ -2,6 +2,7 @@ package data
 
 import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/gameConfig"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
 	utils "github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/util"
@@ -93,6 +94,10 @@ func (m *MapRoleBuild) TPosition() (int, int) {
 	return -1, -1
 }
 
+func (m *MapRoleBuild) Push() {
+	net.Mgr.Push(m)
+}
+
 func (m *MapRoleBuild) ToModel() interface{} {
 	p := model.MapRoleBuild{}
 	p.RNick = "111"
@@ -168,7 +173,8 @@ func (m *MapRoleBuild) Reset() {
 
 func (m *MapRoleBuild) SyncExecute() {
 	MapRoleBuildDao.rbChan <- m
-
+	//push数据到前端
+	m.Push()
 }
 
 func (m *MapRoleBuild) IsCanRes() bool {
@@ -194,4 +200,21 @@ func (m *MapRoleBuild) BuildOrUp(cfg gameConfig.BCLevelCfg) {
 	m.Stone = 0
 	m.Grain = 0
 	m.EndTime = time.Now().Add(time.Duration(cfg.Time) * time.Second)
+}
+
+func (m *MapRoleBuild) IsHasTransferAuth() bool {
+	return m.Type == MapBuildFortress || m.Type == MapBuildSysFortress
+}
+
+func (m *MapRoleBuild) IsRoleFortress() bool {
+	return m.Type == gameConfig.MapBuildFortress
+}
+
+// 玩家要塞才能升级
+func (m *MapRoleBuild) IsHaveModifyLVAuth() bool {
+	return m.Type == MapBuildFortress
+}
+
+func (m *MapRoleBuild) IsInGiveUp() bool {
+	return m.GiveUpTime != 0
 }

@@ -217,3 +217,10 @@ func (r *roleCityService) PositionCity(x int, y int) (*data.MapRoleCity, bool) {
 	rc, ok := r.posRC[posId]
 	return rc, ok
 }
+
+func (rc *roleCityService) GetByRId(rid int) ([]*data.MapRoleCity, bool) {
+	rc.mutex.RLock()
+	r, ok := rc.roleRC[rid]
+	rc.mutex.RUnlock()
+	return r, ok
+}

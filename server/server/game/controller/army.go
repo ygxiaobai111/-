@@ -233,6 +233,9 @@ func (a *ArmyController) conscript(req *net.WsMsgReq, rsp *net.WsMsgRsp) {
 			continue
 		}
 		lv := v.Level
+		if lv <= 0 {
+			lv = 1
+		}
 		gLevel := general.GeneralBasic.GetLevel(lv)
 		add := logic.CityFacilityService.GetSoldier(army.CityId)
 		if gLevel.Soldiers+add < reqObj.Cnts[pos]+army.SoldierArray[pos] {

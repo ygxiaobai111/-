@@ -60,3 +60,117 @@ type ApplyItem struct {
 	RId      int    `json:"rid"`
 	NickName string `json:"nick_name"`
 }
+
+// 创建联盟
+type CreateReq struct {
+	Name string `json:"name"`
+}
+
+type CreateRsp struct {
+	Id   int    `json:"id"` //联盟id
+	Name string `json:"name"`
+}
+
+// 申请加入联盟
+type JoinReq struct {
+	Id int `json:"id"` //联盟id
+}
+
+type JoinRsp struct {
+}
+
+// 联盟成员
+type MemberReq struct {
+	Id int `json:"id"` //联盟id
+}
+
+type MemberRsp struct {
+	Id      int      `json:"id"` //联盟id
+	Members []Member `json:"Members"`
+}
+
+// 审核
+type VerifyReq struct {
+	Id     int  `json:"id"`     //申请操作的id
+	Decide int8 `json:"decide"` //1是拒绝，2是通过
+}
+
+type VerifyRsp struct {
+	Id     int  `json:"id"`     //申请操作的id
+	Decide int8 `json:"decide"` //1是拒绝，2是通过
+}
+
+// 退出
+type ExitReq struct {
+}
+
+type ExitRsp struct {
+}
+
+// 解散
+type DismissReq struct {
+}
+
+type DismissRsp struct {
+}
+
+type NoticeReq struct {
+	Id int `json:"id"` //联盟id
+}
+
+type NoticeRsp struct {
+	Text string `json:"text"`
+}
+
+// 修改公告
+type ModNoticeReq struct {
+	Text string `json:"text"`
+}
+
+type ModNoticeRsp struct {
+	Id   int    `json:"id"` //联盟id
+	Text string `json:"text"`
+}
+
+// 踢人
+type KickReq struct {
+	RId int `json:"rid"`
+}
+
+type KickRsp struct {
+	RId int `json:"rid"`
+}
+
+// 任命
+type AppointReq struct {
+	RId   int `json:"rid"`
+	Title int `json:"title"` //职位，0盟主、1副盟主、2普通成员
+}
+
+type AppointRsp struct {
+	RId   int `json:"rid"`
+	Title int `json:"title"` //职位，0盟主、1副盟主、2普通成员
+}
+
+// 禅让(盟主副盟主)
+type AbdicateReq struct {
+	RId int `json:"rid"` //禅让给的rid
+}
+
+type AbdicateRsp struct {
+}
+
+type UnionLog struct {
+	OPRId    int    `json:"op_rid"`
+	TargetId int    `json:"target_id"`
+	State    int8   `json:"state"`
+	Des      string `json:"des"`
+	Ctime    int64  `json:"ctime"`
+}
+
+type LogReq struct {
+}
+
+type LogRsp struct {
+	Logs []UnionLog `json:"logs"`
+}

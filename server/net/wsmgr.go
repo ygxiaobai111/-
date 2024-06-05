@@ -1,6 +1,8 @@
 package net
 
 import (
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/logic/conn"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/logic/pos"
 	"sync"
 )
 
@@ -91,4 +93,49 @@ func (m *WsMgr) RoleEnter(conn WSConn, rid int) {
 	defer m.rc.Unlock()
 	conn.SetProperty("rid", rid)
 	m.roleCache[rid] = conn
+}
+
+func (w *WsMgr) Push(pushSync conn.PushSync) {
+
+	belongToRIds := pushSync.BelongToRId()
+	model := pushSync.ToModel()
+	//推送给当前视野内的所有玩家
+	isCellView := pushSync.IsCellView()
+	x, y := pushSync.Position()
+	cells := make(map[int]int)
+	//推送给开始位置
+	if isCellView {
+		cellRIds := pos.RPMgr.GetCellRoleIds(x, y, 8, 6)
+		for _, rid := range cellRIds {
+			//是否能出现在视野
+			if can := pushSync.IsCanView(rid, x, y); can {
+				w.PushByRoleId(rid, pushSync.PushMsgName(), model)
+				cells[rid] = rid
+			}
+		}
+	}
+	//推送给目标位置
+	tx, ty := pushSync.TPosition()
+	if tx >= 0 && ty >= 0 {
+		var cellRIds []int
+		if isCellView {
+			cellRIds = pos.RPMgr.GetCellRoleIds(tx, ty, 8, 6)
+		} else {
+			cellRIds = pos.RPMgr.GetCellRoleIds(tx, ty, 0, 0)
+		}
+
+		for _, rid := range cellRIds {
+			if _, ok := cells[rid]; ok == false {
+				if can := pushSync.IsCanView(rid, tx, ty); can {
+					w.PushByRoleId(rid, pushSync.PushMsgName(), model)
+					cells[rid] = rid
+				}
+			}
+		}
+	}
+
+	//推送给当前的所有角色 自己
+	for _, role := range belongToRIds {
+		w.PushByRoleId(role, pushSync.PushMsgName(), model)
+	}
 }

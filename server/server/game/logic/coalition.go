@@ -8,6 +8,7 @@ import (
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model/data"
 	"log"
 	"sync"
+	"time"
 )
 
 var CoalitionService = &coalitionService{
@@ -130,4 +131,174 @@ func (c *coalitionService) GetListApply(unionId int, state int) ([]model.ApplyIt
 		ais = append(ais, ai)
 	}
 	return ais, nil
+}
+
+func (c *coalitionService) GetMainMembers(uid int) []int {
+	rids := make([]int, 0)
+	coalition := c.GetCoalition(uid)
+	if coalition != nil {
+		chairman := coalition.Chairman
+		viceChairman := coalition.ViceChairman
+		rids = append(rids, chairman, viceChairman)
+	}
+	return rids
+}
+
+func (c *coalitionService) Create(name string, rid int) (*data.Coalition, bool) {
+	m := &data.Coalition{Name: name, Ctime: time.Now(),
+		CreateId: rid, Chairman: rid, State: data.UnionRunning, MemberArray: []int{rid}}
+
+	_, err := db.Engine.Table(new(data.Coalition)).InsertOne(m)
+	if err == nil {
+
+		c.mutex.Lock()
+		c.unions[m.Id] = m
+		c.mutex.Unlock()
+
+		return m, true
+	} else {
+		return nil, false
+	}
+}
+
+func (c *coalitionService) MemberEnter(rid int, unionId int) {
+	attr, ok := RoleAttrService.TryCreateRA(rid)
+	if ok {
+		attr.UnionId = unionId
+		if attr.ParentId == unionId {
+			c.DelChild(unionId, attr.RId)
+		}
+	}
+
+	if rcs, ok := RoleCityService.GetByRId(rid); ok {
+		for _, rc := range rcs {
+			rc.SyncExecute()
+		}
+	}
+}
+
+func (c *coalitionService) NewCreateLog(opNickName string, unionId int, opRId int) {
+	ulog := &data.CoalitionLog{
+		UnionId:  unionId,
+		OPRId:    opRId,
+		TargetId: 0,
+		State:    data.UnionOpCreate,
+		Des:      opNickName + " 创建了联盟",
+		Ctime:    time.Now(),
+	}
+
+	db.Engine.InsertOne(ulog)
+}
+
+func (c *coalitionService) DelChild(unionId int, rid int) {
+	attr := RoleAttrService.Get(rid)
+	if attr != nil {
+		attr.ParentId = 0
+		attr.SyncExecute()
+	}
+}
+
+func (c *coalitionService) NewJoin(targetNickName string, unionId int, opRId int, targetId int) {
+	ulog := &data.CoalitionLog{
+		UnionId:  unionId,
+		OPRId:    opRId,
+		TargetId: targetId,
+		State:    data.UnionOpJoin,
+		Des:      targetNickName + " 加入了联盟",
+		Ctime:    time.Now(),
+	}
+	db.Engine.InsertOne(ulog)
+}
+
+func (c *coalitionService) MemberExit(rid int) {
+	if ra := RoleAttrService.Get(rid); ra != nil {
+		ra.UnionId = 0
+	}
+
+	if rcs, ok := RoleCityService.GetByRId(rid); ok {
+		for _, rc := range rcs {
+			rc.SyncExecute()
+		}
+	}
+}
+
+func (c *coalitionService) NewExit(opNickName string, unionId int, opRId int) {
+	ulog := &data.CoalitionLog{
+		UnionId:  unionId,
+		OPRId:    opRId,
+		TargetId: opRId,
+		State:    data.UnionOpExit,
+		Des:      opNickName + " 退出了联盟",
+		Ctime:    time.Now(),
+	}
+	db.Engine.InsertOne(ulog)
+}
+
+func (c *coalitionService) Dismiss(unionId int) {
+	u := c.GetById(unionId)
+	if u != nil {
+		for _, rid := range u.MemberArray {
+			c.MemberExit(rid)
+		}
+		u.State = data.UnionDismiss
+		u.MemberArray = []int{}
+		u.SyncExecute()
+	}
+}
+
+func (c *coalitionService) NewDismiss(opNickName string, unionId int, opRId int) {
+	ulog := &data.CoalitionLog{
+		UnionId:  unionId,
+		OPRId:    opRId,
+		TargetId: 0,
+		State:    data.UnionOpDismiss,
+		Des:      opNickName + " 解散了联盟",
+		Ctime:    time.Now(),
+	}
+	db.Engine.InsertOne(ulog)
+}
+
+func (c *coalitionService) NewAppoint(opNickName string, targetNickName string,
+	unionId int, opRId int, targetId int, memberType int) {
+
+	title := ""
+	if memberType == model.UnionChairman {
+		title = "盟主"
+	} else if memberType == model.UnionViceChairman {
+		title = "副盟主"
+	} else {
+		title = "普通成员"
+	}
+
+	ulog := &data.CoalitionLog{
+		UnionId:  unionId,
+		OPRId:    opRId,
+		TargetId: targetId,
+		State:    data.UnionOpAppoint,
+		Des:      opNickName + " 将 " + targetNickName + " 任命为 " + title,
+		Ctime:    time.Now(),
+	}
+	db.Engine.InsertOne(ulog)
+}
+
+func (c *coalitionService) NewModNotice(opNickName string, unionId int, opRId int) {
+	ulog := &data.CoalitionLog{
+		UnionId:  unionId,
+		OPRId:    opRId,
+		TargetId: 0,
+		State:    data.UnionOpModNotice,
+		Des:      opNickName + " 修改了公告",
+		Ctime:    time.Now(),
+	}
+	db.Engine.InsertOne(ulog)
+}
+
+func (c *coalitionService) GetById(id int) *data.Coalition {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	coa, ok := c.unions[id]
+	if ok {
+		return coa
+	}
+	return nil
 }

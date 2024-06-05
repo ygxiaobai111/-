@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/db"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/net"
+	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/global"
 	"github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/server/game/model"
+	utils "github.com/ygxiaobai111/Three_Kingdoms_of_Longning/server/util"
 
 	"time"
 	"xorm.io/xorm"
@@ -147,11 +150,56 @@ func (a *Army) AfterSet(name string, cell xorm.Cell) {
 	}
 }
 
+func (a *Army) IsCellView() bool {
+	return true
+}
+func (a *Army) IsCanView(rid, x, y int) bool {
+	return true
+}
+func (a *Army) BelongToRId() []int {
+	return []int{a.RId}
+}
+
+func (a *Army) PushMsgName() string {
+	return "army.push"
+}
+
+func (a *Army) Position() (int, int) {
+	diffTime := a.End.Unix() - a.Start.Unix()
+	passTime := time.Now().Unix() - a.Start.Unix()
+	rate := float32(passTime) / float32(diffTime)
+	x := 0
+	y := 0
+	if a.Cmd == ArmyCmdBack {
+		diffX := a.FromX - a.ToX
+		diffY := a.FromY - a.ToY
+		x = int(rate*float32(diffX)) + a.ToX
+		y = int(rate*float32(diffY)) + a.ToY
+	} else {
+		diffX := a.ToX - a.FromX
+		diffY := a.ToY - a.FromY
+		x = int(rate*float32(diffX)) + a.FromX
+		y = int(rate*float32(diffY)) + a.FromY
+	}
+
+	x = utils.MinInt(utils.MaxInt(x, 0), global.MapWith)
+	y = utils.MinInt(utils.MaxInt(y, 0), global.MapHeight)
+	return x, y
+}
+
+func (a *Army) TPosition() (int, int) {
+	return a.ToX, a.ToY
+}
+
+func (a *Army) Push() {
+	net.Mgr.Push(a)
+}
+
 func (a *Army) ToModel() interface{} {
 	p := model.Army{}
 	p.CityId = a.CityId
 	p.Id = a.Id
-	p.UnionId = 0
+	p.UnionId = GetUnion(a.RId)
 	p.Order = a.Order
 	p.Generals = a.GeneralArray
 	p.Soldiers = a.SoldierArray
@@ -185,6 +233,9 @@ func (a *Army) PositionCanModify(pos int) bool {
 
 func (a *Army) SyncExecute() {
 	ArmyDao.armyChan <- a
+	//通知客户端更新
+	a.Push()
+	a.CellX, a.CellY = a.Position()
 }
 
 func (a *Army) CheckConscript() {
@@ -207,6 +258,7 @@ func (a *Army) CheckConscript() {
 	}
 
 }
+
 func (a *Army) IsCanOutWar() bool {
 	//空闲状态
 	return a.Gens != nil && a.Cmd == ArmyCmdIdle

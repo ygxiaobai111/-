@@ -119,3 +119,45 @@ func (r *roleAttrService) GetUnion(rid int) int {
 	}
 	return 0
 }
+
+func (r *roleAttrService) GetParentId(rid int) int {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	ra, ok := r.attrs[rid]
+	if ok {
+		return ra.ParentId
+	}
+	return 0
+}
+
+func (ra *roleAttrService) IsHasUnion(rid int) bool {
+	ra.mutex.RLock()
+	r, ok := ra.attrs[rid]
+	ra.mutex.RUnlock()
+	if ok {
+		return r.UnionId != 0
+	} else {
+		return false
+	}
+}
+
+func (ra *roleAttrService) TryCreateRA(rid int) (*data.RoleAttribute, bool) {
+	attr := ra.Get(rid)
+	if attr != nil {
+		return attr, true
+	} else {
+		ra.mutex.Lock()
+		defer ra.mutex.Unlock()
+		attr := ra.create(rid)
+		return attr, attr != nil
+	}
+}
+func (ra *roleAttrService) create(rid int) *data.RoleAttribute {
+	roleAttr := &data.RoleAttribute{RId: rid, ParentId: 0, UnionId: 0}
+	if _, err := db.Engine.Insert(roleAttr); err != nil {
+		return nil
+	} else {
+		ra.attrs[rid] = roleAttr
+		return roleAttr
+	}
+}
